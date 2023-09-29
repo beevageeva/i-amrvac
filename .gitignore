@@ -1,0 +1,10 @@
+*.dat
+*.vtu
+*.vti
+*.out
+*.log
+*.mod
+*.png
+*.f
+*.o
+*amrvac

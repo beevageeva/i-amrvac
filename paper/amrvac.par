@@ -1,0 +1,79 @@
+ &filelist
+        autoconvert   = T
+        base_filename = 'implicit_coupled'
+        convert_type = "dat_generic_mpi"
+        !convert_type = "vtuBmpi"
+        typefilelog='regression_test'
+        restart_from_file='implicit_coupled0029.dat'
+ /
+
+ &savelist
+        dtsave_log    = 0.1d0
+        dtsave_dat   = 1d-2
+ /
+
+ &stoplist
+        time_max      = 1.d0
+ /
+
+ &methodlist
+        time_stepper = 'threestep'
+        time_integrator = 'IMEX_ARS3'
+        flux_scheme     = 20*'hll'
+        limiter  = 20*'cada3'
+        small_values_method = 'ignore'
+ /
+
+ &boundlist
+        typeboundary_min1  = 13*'symm'
+        typeboundary_max1  = 13*'symm'
+        typeboundary_min2  = 13*'symm'
+        typeboundary_max2  = 13*'symm'
+        typeboundary_min3  = 13*'symm'
+        typeboundary_max3  = 13*'special'
+        internalboundary = .true.
+ /
+
+ &meshlist
+        refine_criterion = 3
+        refine_max_level = 1
+        refine_threshold = 20*0.4d0
+        domain_nx1    = 64
+        domain_nx2    = 64
+        domain_nx3    = 64
+        block_nx1    = 64
+        block_nx2    = 64
+        block_nx3    = 64
+        xprobmin1     = -2.5d0
+        xprobmax1     = 2.5d0
+        xprobmin2     = -2.5d0
+        xprobmax2     = 2.5d0
+        xprobmin3     = 0.7d0
+        xprobmax3     = 12d0
+ /
+
+ &paramlist
+        courantpar    = 0.8d0
+ /
+
+ &twofl_list
+        typedivbfix   =  'linde'
+        twofl_eq_energy = 2
+        has_equi_pe_n0 = .true.
+        has_equi_pe_c0 = .true.
+        has_equi_rho_n0 = .true.
+        has_equi_rho_c0 = .true.
+        B0field=.true.
+        B0field_forcefree=.true.
+        SI_unit       =  .true.
+        twofl_dump_full_vars = .true.
+        twofl_cbounds_species=.true.
+        !twofl_alpha_coll = 1d0
+        !twofl_alpha_coll = 1.16435391d-22
+        twofl_alpha_coll = 0d0
+        twofl_coll_inc_te = .false.
+	twofl_hall=.true.
+ /
+
+ &usr_list
+/
