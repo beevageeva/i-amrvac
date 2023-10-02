@@ -2,7 +2,7 @@ import yt
 
 import numpy as np
 
-base = 'implicit_couplednew'
+base = 'C2/edrnew'
 # Load the dataset.
 
 xprobmin1     = -2.5e0
@@ -16,7 +16,7 @@ center = [0.5*(xprobmin1+xprobmax1),0.5*(xprobmin2+xprobmax2),xprobmax3]
 width=[xprobmax1-xprobmin1,xprobmax2-xprobmin2,0]
 
 
-listFiles=range(6)
+listFiles=range(40,41)
 for kk in listFiles:
     ds = yt.load("%s%04d.dat" % (base,kk))
     print(ds.field_list)

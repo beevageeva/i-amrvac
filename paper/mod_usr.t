@@ -9,7 +9,9 @@ module mod_usr
     character(len=30) ::  namevar
   end type arrayptr
 
-  double precision :: Bz0,Lx,Ly,Lz,freq,Eval
+  double precision :: Bz0,Lx,Ly,Lz,LzN, freq,Eval,rhon00,pen00
+  double precision :: rhoc00,pec00
+  double precision :: rhoc01,LzC
 
 
 contains
@@ -30,6 +32,31 @@ contains
   end subroutine usr_params_read
 
 
+  subroutine dump_units()
+    character(len=*), parameter :: units_filename="units.dat"
+    type(arrayptr), dimension(7) :: write_vars
+    integer, parameter :: I_LEN =1, I_TIME=2, I_DENS=3, I_VEL=4, I_PRES=5, I_MAGFIELD=6, I_TEMP=7
+
+    write_vars(I_LEN)%namevar = "unit_length"
+    write_vars(I_TIME)%namevar = "unit_time"
+    write_vars(I_DENS)%namevar = "unit_density"
+    write_vars(I_VEL)%namevar = "unit_velocity"
+    write_vars(I_PRES)%namevar = "unit_pressure"
+    write_vars(I_MAGFIELD)%namevar = "unit_magneticfield"
+    write_vars(I_TEMP)%namevar = "unit_temperature"
+
+    allocate(write_vars(I_LEN)%p(1), write_vars(I_TIME)%p(1), write_vars(I_DENS)%p(1), write_vars(I_VEL)%p(1), write_vars(I_PRES)%p(1), write_vars(I_MAGFIELD)%p(1), write_vars(I_TEMP)%p(1))
+    write_vars(I_LEN)%p(1) = unit_length
+    write_vars(I_TIME)%p(1) = unit_time
+    write_vars(I_DENS)%p(1) = unit_density
+    write_vars(I_VEL)%p(1) = unit_velocity
+    write_vars(I_PRES)%p(1) = unit_pressure
+    write_vars(I_MAGFIELD)%p(1) = unit_magneticfield
+    write_vars(I_TEMP)%p(1) = unit_temperature
+    call  write_formatted_file(units_filename,write_vars)
+
+  deallocate(write_vars(I_LEN)%p, write_vars(I_TIME)%p, write_vars(I_DENS)%p, write_vars(I_VEL)%p, write_vars(I_PRES)%p, write_vars(I_MAGFIELD)%p, write_vars(I_TEMP)%p)
+  end subroutine dump_units
 
 
 
@@ -38,7 +65,7 @@ contains
     use mod_convert 
     ! default units = 1
     unit_length        = 1d5   ! m
-    unit_temperature   = 1d3   ! K
+    unit_temperature   = 1d4   ! K
     unit_numberdensity = 3d10  ! m^-3
 
 
@@ -51,6 +78,8 @@ contains
     usr_set_parameters  => init_params_usr
     usr_special_bc => specialbc_usr  
     usr_internal_bc => set_vars
+    usr_mask_gamma_ion_rec => set_constant_gamma_rec
+    usr_mask_alpha => set_alpha
     !usr_source =>  specialsource        
     call add_convert_method2(dump_vars, 3, "jx jy jz", "_aux_") 
     call set_coordinate_system("Cartesian_3D")
@@ -59,6 +88,29 @@ contains
 
 
   end subroutine usr_init
+
+    subroutine set_constant_gamma_rec(ixI^L,ixO^L,w,x,gamma_ion, gamma_rec)
+      use mod_global_parameters
+      integer, intent(in) :: ixI^L, ixO^L
+      double precision, intent(in) :: x(ixI^S,1:ndim)
+      double precision, intent(in) :: w(ixI^S,1:nw)
+      double precision, intent(inout) :: gamma_ion(ixI^S),gamma_rec(ixI^S)
+  
+      gamma_ion=0d0
+      gamma_rec=1d0*unit_time
+
+    end subroutine set_constant_gamma_rec
+
+
+    subroutine set_alpha(ixI^L,ixO^L,w,x,alpha)
+      use mod_global_parameters
+      integer, intent(in) :: ixI^L, ixO^L
+      double precision, intent(in) :: x(ixI^S,1:ndim)
+      double precision, intent(in) :: w(ixI^S,1:nw)
+      double precision, intent(inout) :: alpha(ixI^S)
+  
+      alpha = 2e3 * unit_time/rhon00 * exp(-((x(ixO^S,3)-xprobmin3)/LzN)**2)
+    end subroutine set_alpha
   
  function dump_vars(ixI^L, ixO^L, w, x, nwc) result(wnew)
    use mod_global_parameters
@@ -95,7 +147,8 @@ contains
         sin(2d0 * dpi * freq * qt)
     !print*, 'MINMAX', minval(tmp(ixO^S)),&
    !maxval(tmp(ixO^S))   
-    w(ixO^S,mag(3))=w(ixO^S,mag(3)) + tmp(ixO^S) 
+    w(ixO^S,mag(3))=w(ixO^S,mag(3)) + tmp(ixO^S)
+    !TODO SET MAG2 
     tmp(ixO^S)=Eval*exp(-(x(ixO^S,2)**2/Ly**2 ))*&
         exp(-( (x(ixO^S,3)-xprobmax3) **2/Lz**2 )) * &
         exp(-(x(ixO^S,1)**2/Lx**2 )) * cos(2d0 * dpi * freq * qt)/Bz0
@@ -159,12 +212,13 @@ contains
    !Update By in ghost cell
    !By(t+1) = By(t) - dt * partial Ex / partial z   
    !How to code this?
-   w(ixO^S,mag(2)) = w(ixO^S,mag(2)) - dt * Efield(ixO^S)/dxlevel(3)
+   w(ixO^S,mag(2)) = w(ixO^S,mag(2)) + dt * Efield(ixO^S)/dxlevel(3)
 
 
-    tmp(ixO^S)=Efield(ixO^S)/Bz0
-    w(ixO^S,mom_c(2)) = tmp(ixO^S) 
+    !tmp(ixO^S)=Efield(ixO^S)/Bz0
+    !w(ixO^S,mom_c(2)) = tmp(ixO^S) 
 
+    call twofl_to_conserved(ixG^L,ixO^L,w,x)  
   end subroutine specialbc_usr
 
 
@@ -178,10 +232,14 @@ contains
       double precision   :: n01, n02
                 
 
-      w0(ixO^S,equi_pe_n0_) = 1d0
-      w0(ixO^S,equi_pe_c0_) = 1d0
-      w0(ixO^S,equi_rho_n0_) = 1d0
-      w0(ixO^S,equi_rho_c0_) = 1d0
+      w0(ixO^S,equi_pe_n0_) = pen00
+      w0(ixO^S,equi_pe_c0_) = pec00
+      w0(ixO^S,equi_rho_n0_) = rhon00 
+      w0(ixO^S,equi_rho_c0_) = rhoc00
+      if(iprob .eq. 2) then
+        w0(ixO^S,equi_rho_c0_) =  w0(ixO^S,equi_rho_c0_)+&
+          rhoc01 * exp(-(x(ixO^S,2)/LzC)**2)
+      endif   
 
 
     end subroutine special_set_equi_vars
@@ -224,29 +282,60 @@ contains
         print*, "UNITMAG ", unit_magneticfield        
         print*, "UNITTIME ", unit_time      
         print*, "UNITVEL ", unit_velocity       
-        print*, "ALPHA ", 2e3*unit_time*unit_density/(unit_numberdensity)     
     endif        
     !call twofl_to_conserved(ixI^L,ixO^L,w,x)  
   end subroutine initonegrid_usr
 
   
+  subroutine write_formatted_file(filename,vars)
+    character(len=*), intent(in) :: filename
+    type(arrayptr), intent(in), dimension(:) :: vars
+    integer :: i,j
+    integer, parameter :: reading_unit=100
+    OPEN(reading_unit, file=filename)
+    write(reading_unit,'(A)',advance="no") "#"
+    !!this should also work if the format is 'number of vars(A)'instead of just '(A)' which puts one value at one line
+    !write(reading_unit,'(A)') (vars(i)%namevar,i=1,size(vars))
+    write(reading_unit,*) (vars(i)%namevar,i=1,size(vars))
+    do i=1,size(vars(1)%p)
+      !write(reading_unit,'(E2.5)') (vars(j)%p(i),j=1,size(vars))
+      write(reading_unit,*) (vars(j)%p(i),j=1,size(vars))
+    enddo
+    CLOSE(reading_unit)
+  end subroutine write_formatted_file
 
 
   subroutine init_params_usr()
     double precision :: unit_ele
+    double precision, parameter :: echarge =1.6e-19 !Coulomb
 
+    call dump_units()
 
-    Lx = 1d0        
+    Lx = 1d0 !Lx=Ly=100km       
     Ly = 1d0        
-    Lz = 5d-1        
+    Lz = 5d-1   !used for setting source close to upper BC 
+    LzN=0.4 !40km  
     unit_ele = unit_length  * unit_magneticfield / unit_time
     Eval = 62.4*1d-3/unit_ele 
-    freq =  1d-2 * unit_time       
-    print*, 1d0/freq
+    freq =  1d-2 * unit_time    
+    if(mype .eq. 0) then   
+      print*, 1d0/freq
+    endif
 
-    !Eval = Eval*1d8
     Bz0=-5d-5/unit_magneticfield
-    !Bz0=Bz0*1d-3
+
+    rhon00=1d0
+    pen00=1d0
+
+    rhoc00=1d0
+    pec00=1d0
+
+    rhoc01=2d0
+    LzC=0.5 !50km, Case 2 
+
+    twofl_etah=mp_SI/echarge / (unit_magneticfield * unit_time)
+
+
   end subroutine init_params_usr
 
 

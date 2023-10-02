@@ -1,15 +1,16 @@
  &filelist
         autoconvert   = T
-        base_filename = 'implicit_coupled'
+        base_filename = 'edr'
         convert_type = "dat_generic_mpi"
         !convert_type = "vtuBmpi"
-        typefilelog='regression_test'
-        restart_from_file='implicit_coupled0029.dat'
+        !typefilelog='regression_test'
+        !restart_from_file='edr0051.dat'
  /
 
  &savelist
         dtsave_log    = 0.1d0
         dtsave_dat   = 1d-2
+        !tsave(1,2)=0.52
  /
 
  &stoplist
@@ -50,6 +51,8 @@
         xprobmax2     = 2.5d0
         xprobmin3     = 0.7d0
         xprobmax3     = 12d0
+        iprob=2
+        !iprob=1
  /
 
  &paramlist
@@ -72,6 +75,9 @@
         !twofl_alpha_coll = 1.16435391d-22
         twofl_alpha_coll = 0d0
         twofl_coll_inc_te = .false.
+        twofl_coll_inc_ionrec=.true.
+        twofl_equi_ionrec=.true.
+
 	twofl_hall=.true.
  /
 
