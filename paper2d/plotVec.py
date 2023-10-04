@@ -8,21 +8,14 @@ plt.ion()
 
 basename='edr'
 
-base = basename
-base = "%snew" % basename
-base = "%s_aux_" % basename
-# Load the dataset.
 
 xprobmin1     = -2.5e0
 xprobmax1     = 2.5e0
-xprobmin2     = -2.5e0
-xprobmax2     = 2.5e0
-xprobmin3     = 0.7e0
-xprobmax3     = 12e0
+xprobmin2     = 0.9e0
+xprobmax2     = 12.5e0
 
-mx=64
-my=64
-mz=64
+mx=128
+my=256
 
 from os.path import join
 unitFile=join(".","units.dat")
@@ -31,25 +24,38 @@ unitJ = unitDens * unitVel/(unitMag * unitTime)
 print("UNITJ=",unitJ)
 
 
-zheight=6.4
-zheight=1.4
-zheight=1.0
-zz=np.linspace(xprobmin3,xprobmax3,mz)
 xx=np.linspace(xprobmin1,xprobmax1,mx)
 yy=np.linspace(xprobmin2,xprobmax2,my)
-zindex=np.argmin(np.absolute(zz-zheight))
 
-center = [0.5*(xprobmin1+xprobmax1),0.5*(xprobmin2+xprobmax2),xprobmax3]
+xmin=-1.5
+xmax=1.5
+ymin=0.9
+ymax=3.05
+
+
+xminindex=np.argmin(np.absolute(xx-xmin))
+xmaxindex=np.argmin(np.absolute(xx-xmax))
+yminindex=np.argmin(np.absolute(yy-ymin))
+ymaxindex=np.argmin(np.absolute(yy-ymax))
+
+
+center = [0.5*(xprobmin1+xprobmax1),0.5*(xprobmin2+xprobmax2),0]
 width=[xprobmax1-xprobmin1,xprobmax2-xprobmin2,0]
 
 
 fig,ax=plt.subplots(nrows=1,ncols=1)
 
+
+
 cb=None
 
 listFiles=range(0,10000)
+
+
+#listFiles=[15]
 for kk in listFiles:
     ax.cla()
+    base = "%s_aux_" % basename
     ds = yt.load("%s%04d.dat" % (base,kk))
     print(ds.field_list)
     print(ds['time'])
@@ -61,34 +67,40 @@ for kk in listFiles:
     #arr = data['b3'].to_ndarray()[:,:,mz-1]
     #arr = data['b3'].to_ndarray()[mx//2,:,:]
     #arr = data['m_c2'].to_ndarray()[mx//2,:,:]/data['rho_c'].to_ndarray()[mx//2,:,:]
-    #arr = data['m_c2'].to_ndarray()[mx//2,:,:]/data['rho_c'].to_ndarray()[mx//2,:,:]
     #arr = data['jz'].to_ndarray()[mx//2,:,:]
     #arr = data['jz'].to_ndarray()[:,:,mz-1]
-    arr = data['jz'].to_ndarray()[:,:,zindex]*unitJ*1e9
+    #arr = data['jy'].to_ndarray()[:,:,0]*unitJ*1e9
+    jy = data['jy'].to_ndarray()[:,:,0]*unitJ*1e9
+    jx = data['jx'].to_ndarray()[:,:,0]*unitJ*1e9
+
     #arr = data['jz'].to_ndarray()[:,:,zindex]
     #arr = data['jz'].to_ndarray()[:,my//2,:]*unitJ*1e9
     #arr = data['jz'].to_ndarray()[mx//3,:,:]*unitJ*1e9
     #arr = data['rho_c'].to_ndarray()[:,:,zindex]
-    print("MINMAX2 ", np.min(arr), np.max(arr))
 #    print("MINMAX ", np.min(data['b3'].to_ndarray()), np.max(data['b3'].to_ndarray()))
 #    print("MINMAX mc1 ", np.min(data['m_c1'].to_ndarray()), np.max(data['m_c1'].to_ndarray()))
 #    print("MINMAX mc2 ", np.min(data['m_c2'].to_ndarray()), np.max(data['m_c2'].to_ndarray()))
 #    print("MINMAX mc3 ", np.min(data['m_c3'].to_ndarray()), np.max(data['m_c3'].to_ndarray()))
-    print(type(arr))
-    mm=max(abs(np.min(arr)),abs(np.max(arr)) )
 
-    arr=arr.transpose()
-    im=ax.imshow(arr,origin='lower',norm=matplotlib.colors.Normalize(vmin=-mm,vmax=mm),cmap='seismic',extent=(xprobmin1,xprobmax1,xprobmin2,xprobmax2))    
-    if(not cb is None):
-      cb.remove()
-    cb=plt.colorbar(im)
-    cb.set_label(r"$J_z$ [nA/m$^2$]")
-    levels=[-2,-1,1,2]
-    levels=[-2,-1,-0.5,-0.25,0.25,0.5,1,2]
-    cp = ax.contour(xx,yy,arr,levels,cmap="PiYG",linewidths=1.5)
-    ax.set_title("z=140 km")
+    print("LEN xx ", len(xx))
+    print("LEN yy ", len(yy))
+    print("JXSHAPE ", jx.shape)
+    print("JYSHAPE ", jy.shape)
+
+    xplot=xx[xminindex:xmaxindex+1]
+    yplot=yy[yminindex:ymaxindex+1]
+
+
+    jx=jx[xminindex:xmaxindex+1,yminindex:ymaxindex+1]
+    jy=jy[xminindex:xmaxindex+1,yminindex:ymaxindex+1]
+
+    #ax.quiver(xx,yy,jx.T,jy.T,scale=1e4, units='xy',
+    #              color="orange", width=1.0, headwidth=0.8)
+    ax.quiver(xplot,yplot,jx.T,jy.T)
+    #ax.streamplot(xplot,yplot,jx.T,jy.T)
+
     ax.text(0.92, 0.9, ("%.1f s"% (float(ds["time"])*unitTime) ),size=10, color='k',ha="center", va="center",transform=ax.transAxes)
     fig.canvas.draw()    
     plt.draw()
     plt.show()
-    plt.savefig("B3%04d.png" % kk)
+    plt.savefig("J%04d.png" % kk)

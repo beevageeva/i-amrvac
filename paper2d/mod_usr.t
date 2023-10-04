@@ -9,7 +9,7 @@ module mod_usr
     character(len=30) ::  namevar
   end type arrayptr
 
-  double precision :: Bz0,Lx,Ly,Lz,LzN, freq,Eval,rhon00,pen00
+  double precision :: Bz0,Lx,Lz,LzN, freq,Eval,rhon00,pen00
   double precision :: rhoc00,pec00
   double precision :: rhoc01,LzC
 
@@ -83,7 +83,7 @@ contains
     usr_mask_alpha => set_alpha
     !usr_source =>  specialsource        
     call add_convert_method2(dump_vars, 3, "jx jy jz", "_aux_") 
-    call set_coordinate_system("Cartesian_3D")
+    call set_coordinate_system("Cartesian_2.5D")
 
     call twofl_activate()
 
@@ -110,7 +110,7 @@ contains
       double precision, intent(in) :: w(ixI^S,1:nw)
       double precision, intent(inout) :: alpha(ixI^S)
   
-      alpha = 2e3 * unit_time/rhon00 * exp(-((x(ixO^S,3)-xprobmin3)/LzN)**2)
+      alpha = 2e3 * unit_time/rhon00 * exp(-((x(ixO^S,2)-xprobmin2)/LzN)**2)
     end subroutine set_alpha
   
  function dump_vars(ixI^L, ixO^L, w, x, nwc) result(wnew)
@@ -131,30 +131,23 @@ contains
  end function dump_vars
 
 
- subroutine specialsource(qdt,ixI^L,ixO^L,iw^LIM,qtC,wCT,qt,w,x)
-    use mod_global_parameters
-
-    integer, intent(in) :: ixI^L, ixO^L, iw^LIM
-    double precision, intent(in) :: qdt, qtC, qt
-    double precision, intent(in) :: x(ixI^S,1:ndim), wCT(ixI^S,1:nw)
-    double precision, intent(inout) :: w(ixI^S,1:nw)
-
-    double precision                :: tmp(ixO^S)
-
-    w(ixO^S, 1:nw) = 0d0
-    tmp(ixO^S)=-dt * 2d0 * Eval*&
-        x(ixO^S,2)/Ly**2 * exp(-(x(ixO^S,2)**2/Ly**2 ))*&
-        exp(-( (x(ixO^S,3)-xprobmax3) **2/Lz**2 )) * &
-        sin(2d0 * dpi * freq * qt)
-    !print*, 'MINMAX', minval(tmp(ixO^S)),&
-   !maxval(tmp(ixO^S))   
-    w(ixO^S,mag(3))=w(ixO^S,mag(3)) + tmp(ixO^S)
-    !TODO SET MAG2 
-    tmp(ixO^S)=Eval*exp(-(x(ixO^S,2)**2/Ly**2 ))*&
-        exp(-( (x(ixO^S,3)-xprobmax3) **2/Lz**2 )) * &
-        exp(-(x(ixO^S,1)**2/Lx**2 )) * cos(2d0 * dpi * freq * qt)/Bz0
-    w(ixO^S,mom_c(2)) = tmp(ixO^S) 
- end subroutine specialsource
+! subroutine specialsource(qdt,ixI^L,ixO^L,iw^LIM,qtC,wCT,qt,w,x)
+!    use mod_global_parameters
+!
+!    integer, intent(in) :: ixI^L, ixO^L, iw^LIM
+!    double precision, intent(in) :: qdt, qtC, qt
+!    double precision, intent(in) :: x(ixI^S,1:ndim), wCT(ixI^S,1:nw)
+!    double precision, intent(inout) :: w(ixI^S,1:nw)
+!
+!    double precision                :: tmp(ixO^S)
+!
+!    
+!
+!    tmp(ixO^S)=Eval*&
+!        exp(-( (x(ixO^S,2)-xprobmax2) **2/Lz**2 )) * &
+!        exp(-(x(ixO^S,1)**2/Lx**2 )) * cos(2d0 * dpi * freq * qt)/Bz0
+!    w(ixO^S,mom_c(2)) = tmp(ixO^S) 
+! end subroutine specialsource
 
 
     subroutine set_vars(level,qt,ixI^L,ixO^L,w,x)
@@ -164,6 +157,7 @@ contains
       double precision, intent(inout) :: w(ixI^S,1:nw)
       double precision, intent(in)    :: x(ixI^S,1:ndim)
 
+      double precision :: Efield(ixI^S)
 
     !print*, 'SETVARS VELy', minval(w(ixO^S,mom_c(:)))
     !print*, 'SETVARS VELy', maxval(w(ixO^S,mom_c(:)))
@@ -172,7 +166,17 @@ contains
     w(ixI^S,rho_n_)=0d0  
     w(ixI^S,mom_n(1:ndir))=0d0  
     w(ixI^S,e_n_)=0d0  
-    w(ixI^S,e_c_)=0d0  
+    w(ixI^S,e_c_)=0d0 
+
+    if(iprob==2) then
+      where(x(ixO^S,2)>Lz)
+        Efield(ixO^S)= Eval* &
+          exp(-(x(ixO^S,1)**2/Lx**2 )) !* sin(2d0 * dpi * freq * qt)
+  
+        w(ixO^S,mom_c(3)) = Efield(ixO^S)/Bz0 
+      endwhere
+    endif
+ 
    call twofl_to_conserved(ixI^L,ixO^L,w,x)  
   
   end subroutine set_vars
@@ -184,43 +188,30 @@ contains
     double precision, intent(inout) :: w(ixG^S,1:nw)
 
     double precision                :: Efield(ixO^S)
- !   double precision                :: tmp(ixO^S)
+
+    if(iB==3) then
+
+      w(ixO^S,mag(2)) = 0d0
+    elseif (iB==4 .and. iprob==1) then
+      !Boundary condition for zmax
+      call twofl_to_primitive(ixG^L,ixO^L,w,x)  
+      !w(ixO^S, 1:nw) = 0d0
+      Efield(ixO^S)= Eval* &
+          exp(-(x(ixO^S,1)**2/Lx**2 )) !* sin(2d0 * dpi * freq * qt)
+      w(ixO^S,e_c_)=0d0
+      w(ixO^S,e_n_)=0d0
+      w(ixO^S,rho_n_)=0d0
+      w(ixO^S,mom_n(1:3))=0d0
+      !w(ixO^S,mag(2)) = w(ixO^S,mag(2)) + dt * Efield(ixO^S)/dxlevel(2)
+  
+      w(ixO^S,mom_c(3)) = Efield(ixO^S)/Bz0 
+  
+      call twofl_to_conserved(ixG^L,ixO^L,w,x)  
+    else
+      print*, "WRONG BC DIR ", iB
+    endif
 
 
-
-    !Boundary condition for Bz
-    w(ixO^S, 1:nw) = 0d0
-    Efield(ixO^S)= Eval* exp(-(x(ixO^S,2)**2/Ly**2 ))*&
-        exp(-(x(ixO^S,1)**2/Lx**2 )) * sin(2d0 * dpi * freq * qt)
-
-
-!    tmp(ixO^S)= -2d0 * Efield(ixO^S)*&
-!        x(ixO^S,2)/Ly**2 
-!    !print*, 'MINMAX', minval(tmp(ixO^S)),&
-!   !maxval(tmp(ixO^S))   
-!    w(ixO^S,mag(3))=w(ixO^S,mag(3)) + dt * tmp(ixO^S) 
-!
-!   !!!!!!!!
-!   ! Update horizontal components of B
-!   ! Spencer mod 2023/09/27
-!
-!   !TODO
-!   !Update Bx in ghost cell
-!   !Bx(t+1) = Bx(t) + dt * partial Ey / partial z   
-!   !How to code this?
-!   !w(ixO^S,mag(1)) = w(ixO^S,mag(1)) + dt * !partial Ey / partial z
-!
-!   !TODO
-!   !Update By in ghost cell
-!   !By(t+1) = By(t) - dt * partial Ex / partial z   
-!   !How to code this?
-!   w(ixO^S,mag(2)) = w(ixO^S,mag(2)) + dt * Efield(ixO^S)/dxlevel(3)
-
-
-    !tmp(ixO^S)=Efield(ixO^S)/Bz0
-    w(ixO^S,mom_c(2)) = Efield(ixO^S)/Bz0 
-
-    call twofl_to_conserved(ixG^L,ixO^L,w,x)  
   end subroutine specialbc_usr
 
 
@@ -237,12 +228,7 @@ contains
       w0(ixO^S,equi_pe_n0_) = pen00
       w0(ixO^S,equi_pe_c0_) = pec00
       w0(ixO^S,equi_rho_n0_) = rhon00 
-      w0(ixO^S,equi_rho_c0_) = rhoc00
-      if(iprob .eq. 2) then
-        w0(ixO^S,equi_rho_c0_) =  w0(ixO^S,equi_rho_c0_)+&
-          rhoc01 * exp(-(x(ixO^S,2)/LzC)**2)
-      endif   
-      w0(ixO^S,equi_rho_c0_) = w0(ixO^S,equi_rho_c0_)*ionMass 
+      w0(ixO^S,equi_rho_c0_) = rhoc00 * ionMass
 
 
     end subroutine special_set_equi_vars
@@ -253,8 +239,9 @@ contains
     integer, intent(in)           :: ixI^L,ixO^L
     double precision, intent(in)  :: x(ixI^S,1:ndim)
     double precision, intent(inout) :: wB0(ixI^S,1:ndir)
-      wB0(ixO^S,3)=Bz0
-      wB0(ixO^S,1:2)=0d0
+      wB0(ixO^S,2)=Bz0
+      wB0(ixO^S,1)=0d0
+      wB0(ixO^S,3)=0d0
 
   end subroutine specialset_B0
 
@@ -314,16 +301,13 @@ contains
 
     call dump_units()
 
-    Lx = 1d0 !Lx=Ly=100km       
-    Ly = 1d0        
-    Lz = 5d-1   !used for setting source close to upper BC 
+    Lx = 1d0 !Lx=100km       
+    !Lz = 5d-1   !used for setting source close to upper BC 
+    Lz = 11d0   !lower height of the pert at the upper BC 
     LzN=0.4 !40km  
     unit_ele = unit_length  * unit_magneticfield / unit_time
-    Eval = 62.4*1d-3/unit_ele 
+    Eval = -62.4*1d-3/unit_ele 
     freq =  1d-2 * unit_time    
-    if(mype .eq. 0) then   
-      print*, 1d0/freq
-    endif
 
     Bz0=-5d-5/unit_magneticfield
 
@@ -336,8 +320,13 @@ contains
     rhoc01=2d0
     LzC=0.5 !50km, Case 2 
 
-    twofl_etah=ionMass * mp_SI/echarge / (unit_magneticfield * unit_time)
+    twofl_etah=ionMass*mp_SI/echarge / (unit_magneticfield * unit_time)
 
+    if(mype .eq. 0) then   
+      print*, "DRIVER FREQ. = ", 1d0/freq
+      print*, "V_ini ", Eval/Bz0 * unit_length/unit_time
+      print*, "ETAH ", twofl_etah
+    endif
 
   end subroutine init_params_usr
 
